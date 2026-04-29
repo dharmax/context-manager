@@ -1,0 +1,39 @@
+{
+  "name": "@dharmax/context-manager",
+  "version": "0.1.0",
+  "description": "Baseline prompt context manager with heuristic retrieval, budgeting, and lean-ctx-backed compression.",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "esbuild src/index.mts --bundle --platform=node --format=esm --outfile=dist/index.mjs --sourcemap --resolve-extensions=.mts,.mtsx,.js,.json --external:node:child_process --external:node:util && tsc --emitDeclarationOnly --outDir dist"
+  },
+  "keywords": [
+    "llm",
+    "context",
+    "lean-ctx",
+    "retrieval"
+  ],
+  "author": "dharmax",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dharmax/context-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dharmax/context-manager/issues"
+  },
+  "homepage": "https://github.com/dharmax/context-manager#readme",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.0.0"
+  }
+}
