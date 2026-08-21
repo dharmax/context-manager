@@ -26,7 +26,7 @@ High-performance, Bun-native prompt context engine with hybrid retrieval (BM25 +
 * **Strict Priority Knapsack Packing**: Guaranteed hard token ceilings without first-item overflow bugs. Prioritizes context tiers: `pinned` > `working` > `retrieved` > `history`.
 * **Multi-Format Prompt Rendering**: Renders ready-to-inject context in modern LLM formats: XML (`<context><item ...>`), Markdown (`### Title`), JSON, or Plain text.
 * **Non-Destructive Compression**: Structural code outline extraction and head-tail log compaction instead of destructive mid-sentence truncation.
-* **Drop-in `@dharmax/llm-utils` Interop**: Implements `PromptContextManager` interface for 1-line context injection into `Asker.ask()` and `Asker.prompt()`.
+* **Drop-in `@dharmax/llm-utils` Interop**: Implements `PromptContextManager` interface for 1-line context injection into `Asker.ask()`, `Asker.prompt()`, and `LLMSession`.
 
 ---
 
@@ -85,28 +85,113 @@ console.log(result.rendered);
 
 ---
 
-## Integration with `@dharmax/llm-utils`
+## Dynamic Auto-Tagging & Entity Ingestion
 
-Pass `ModularContextManager` directly into `Asker`:
+Use `Asker.json()` with fast or local models (`task: 'fast'` / `preferLocal: true`) to automatically extract tags and categories before indexing documents:
 
 ```ts
-import { Asker } from '@dharmax/llm-utils';
+import { Asker, z } from '@dharmax/llm-utils';
 import { createContextManager } from '@dharmax/context-manager';
 
-const context = createContextManager();
+const asker = new Asker();
+const contextManager = createContextManager();
+
+const MetadataSchema = z.object({
+  category: z.string(),
+  tags: z.array(z.string()),
+  summary: z.string()
+});
+
+async function autoIngest(id: string, title: string, content: string) {
+  // Extract metadata locally or using fast cloud models
+  const res = await asker.json(
+    `Extract 1 category, 3-5 tags, and a 1-sentence summary:\n\nTitle: ${title}\n${content}`,
+    MetadataSchema,
+    { task: 'fast', preferLocal: true }
+  );
+
+  await contextManager.add({
+    id,
+    title,
+    body: content,
+    category: res.data?.category,
+    tags: res.data?.tags,
+    metadata: { summary: res.data?.summary }
+  });
+}
+```
+
+---
+
+## Production Recipe: Long-Running Sessions with Smart Model Routing
+
+For long sessions (20–100+ turns), pair `LLMSession` with `ModularContextManager` and `ModelRouter` to prevent token window explosion while keeping costs and latency minimal:
+
+```ts
+import { Asker, LLMSession, z } from '@dharmax/llm-utils';
+import { createContextManager, createSqliteStore } from '@dharmax/context-manager';
+
+// 1. Set up persistent SQLite context store
+const contextStore = createSqliteStore({ filename: './session-context.db' });
+const context = createContextManager({
+  store: contextStore,
+  defaultMaxTokens: 1200 // Dedicated token budget for context + history
+});
+
+// Pinned global system rules (never evicted)
 await context.add({
-  id: 'style-guide',
-  title: 'CSS Guidelines',
-  body: 'Use native CSS nesting and scoped component styles.',
-  category: 'frontend'
+  id: 'system-guidelines',
+  title: 'Core Constraints',
+  body: 'Always write concise TypeScript. Prefer Bun APIs.',
+  priority: 'pinned'
 });
 
 const asker = new Asker({ context });
+const session = new LLMSession(asker, { maxHistory: 6 }); // Keep last 6 raw turns in immediate memory
 
-// Context is automatically retrieved, budgeted, and injected into the prompt
-const res = await asker.ask('Write a button component', {
-  model: 'openai/gpt-4o'
-});
+// 2. Compact older turns into structured milestone blocks
+async function compactOlderTurns(history: Array<{ role: string; content: string }>) {
+  if (history.length < 6) return;
+
+  // Use fast/summarization model route (e.g. Gemini 2.0 Flash or local Ollama)
+  const summaryResult = await asker.json(
+    `Summarize the key facts, decisions, and user preferences from this dialogue:\n\n` +
+    history.map(m => `[${m.role}]: ${m.content}`).join('\n'),
+    z.object({
+      milestone: z.string(),
+      decisions: z.array(z.string()),
+      tags: z.array(z.string())
+    }),
+    { task: 'summarization' }
+  );
+
+  if (summaryResult.ok && summaryResult.data) {
+    // Ingest summary block as working session memory
+    await context.add({
+      id: `milestone-${Date.now()}`,
+      title: `Session Milestone: ${summaryResult.data.milestone}`,
+      body: summaryResult.data.decisions.join('\n'),
+      category: 'session-summary',
+      tags: summaryResult.data.tags,
+      priority: 'working' // High priority working context
+    });
+  }
+}
+
+// 3. Multi-turn execution with task-routed reasoning
+async function chat(userPrompt: string) {
+  // Main reasoning uses powerful model (e.g. 'code' or 'reasoning' route)
+  const reply = await session.ask(userPrompt, {
+    task: 'code' // Automatically routed to GPT-4o / Claude 3.7 Sonnet / Qwen Coder
+  });
+
+  // Background compaction for turns exceeding rolling threshold
+  if (session.getHistory().length >= 6) {
+    compactOlderTurns(session.getHistory()).catch(console.error);
+  }
+
+  return reply.text;
+}
 ```
 
 ---
@@ -135,129 +220,17 @@ const manager = createContextManager({ store });
 
 ---
 
-## Advanced Guides & Recipes
+## Limitations & Engineering Trade-offs
 
-### 1. Hybrid Search (FTS5 / BM25 + Vector DB via RRF)
+When designing long-session agent architectures, be aware of the following trade-offs:
 
-Plug in any vector index (e.g. Orama, `sqlite-vec`, LanceDB, Qdrant) alongside a lexical store:
-
-```ts
-import { HybridContextStore, MemoryContextStore, type VectorStoreAdapter } from '@dharmax/context-manager';
-
-const vectorAdapter: VectorStoreAdapter = {
-  async search(query: string, limit: number) {
-    const embedding = await myEmbedder(query);
-    return await myVectorDb.query(embedding, limit); // returns [{ id, score }]
-  }
-};
-
-const hybridStore = new HybridContextStore({
-  lexicalStore: new MemoryContextStore(),
-  vectorStore: vectorAdapter,
-  rrfOptions: { k: 60 } // Standard RRF smoothing constant
-});
-
-const manager = createContextManager({ store: hybridStore });
-```
-
----
-
-### 2. Priority-Tiered Token Packing
-
-Ensure critical instructions are never dropped while dynamically trimming less important history:
-
-```ts
-await manager.add([
-  {
-    id: 'sys-rules',
-    title: 'System Rules',
-    body: 'Never output private API keys.',
-    priority: 'pinned' // Tier 0 (Highest - never evicted)
-  },
-  {
-    id: 'active-file',
-    title: 'Current File: index.ts',
-    body: 'export function run() { ... }',
-    priority: 'working' // Tier 1
-  },
-  {
-    id: 'faq',
-    title: 'General FAQ',
-    body: 'Frequently asked questions...',
-    priority: 'retrieved' // Tier 2
-  }
-]);
-
-// Knapsack packing fills: Tier 0 -> Tier 1 -> Tier 2 -> History
-// until the maxTokens budget ceiling is reached.
-```
-
----
-
-### 3. Non-Destructive Code & Log Compression
-
-```ts
-import { CodeOutlineCompressor, HeadTailCompressor, createContextManager } from '@dharmax/context-manager';
-
-// Compress code files by extracting type signatures, interfaces, and function headers:
-const codeManager = createContextManager({
-  compressor: new CodeOutlineCompressor()
-});
-
-// Truncate long build logs safely keeping top and bottom output:
-const logManager = createContextManager({
-  compressor: new HeadTailCompressor({ headLines: 10, tailLines: 10 })
-});
-```
-
----
-
-## Context Diagnostics & Provenance
-
-Every `resolve()` call returns comprehensive diagnostic telemetry for evaluation and debugging:
-
-```ts
-const result = await contextManager.resolve({ query: 'database' });
-
-console.log(result.diagnostics);
-/*
-{
-  strategy: 'priority-knapsack-packing',
-  format: 'markdown',
-  budget: {
-    requested: 800,
-    used: 342,
-    itemsIncluded: 2,
-    itemsExcluded: 1
-  },
-  excluded: [
-    { id: 'large-doc', reason: 'budget' }
-  ]
-}
-*/
-```
-
----
-
-## AI Agent Integration Guidelines
-
-When using `@dharmax/context-manager` in autonomous agents or background workers:
-
-1. **Keep System Rules Pinned**: Mark safety constraints and mandatory schemas with `priority: 'pinned'` so they are never evicted under tight token constraints.
-2. **Use Inline Modifiers**: Pass structured prompt queries like `category:api tag:auth "JWT validation" verify token` to automatically scope retrieval.
-3. **Format Selection**: Prefer `format: 'xml'` when prompting Claude, Gemini, or OpenAI for clean item demarcation.
-
----
-
-## Development & Testing
-
-```sh
-# Run Bun tests (ultra-fast)
-bun test
-
-# Run TypeScript build
-bun run build
-```
+| Limitation | Impact | Mitigation Strategy |
+| :--- | :--- | :--- |
+| **Lossy Compaction** | Summarizing old turns loses exact code lines and quotes. | Retain code snippets in dedicated code blocks (`priority: 'working'`) rather than conversational prose. |
+| **Temporal Contradiction** | User changing their mind on Turn 40 can conflict with Turn 5 summary. | Store timestamps/versions in block `metadata` and apply recency-weighted scoring. |
+| **Extraction Model Variance** | Small local models (3B) may miss subtle edge-case entities. | Use `task: 'fast'` (Gemini 2.0 Flash) or `task: 'code'` for complex structured entity extraction. |
+| **Synchronous Latency Jitter** | Running compaction during user turns adds 300–800ms latency. | Fire compaction asynchronously in the background (`compact().catch()`). |
+| **Retrieval Vocabulary Mismatch** | Unrelated phrasing can miss lexical keywords. | Use `HybridContextStore` with embeddings so semantic meaning is captured even if keywords differ. |
 
 ---
 

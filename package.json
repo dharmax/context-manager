@@ -1,6 +1,6 @@
 {
   "name": "@dharmax/context-manager",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "High-performance, Bun-native modular prompt context engine with hybrid retrieval (BM25 + Vector RRF), priority budgeting, and non-destructive compression.",
   "type": "module",
   "main": "./dist/index.mjs",

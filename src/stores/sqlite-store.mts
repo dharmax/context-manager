@@ -1,5 +1,6 @@
 import type {
   ContextBlock,
+  ContextPriority,
   ContextStoreAdapter,
   ScoredContextBlock,
   StoreQueryOptions
@@ -10,8 +11,29 @@ export interface SqliteStoreOptions {
   inMemory?: boolean;
 }
 
+interface SqliteRow {
+  id: string;
+  title: string;
+  body: string;
+  category: string | null;
+  tags: string | null;
+  priority: string | null;
+  source: string | null;
+  metadata: string | null;
+  score?: number;
+}
+
+interface BunDatabase {
+  run(sql: string): void;
+  prepare(sql: string): {
+    run(params?: Record<string, unknown> | unknown): void;
+    all(params?: Record<string, unknown> | unknown): SqliteRow[];
+  };
+  transaction<T extends (...args: any[]) => any>(fn: T): T;
+}
+
 export class BunSqliteContextStore implements ContextStoreAdapter {
-  private db: any;
+  private db?: BunDatabase;
   private isAvailable: boolean = false;
 
   constructor(options: SqliteStoreOptions = {}) {
@@ -20,7 +42,7 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
       // @ts-ignore
       const { Database } = require('bun:sqlite');
       const target = options.inMemory || !options.filename ? ':memory:' : options.filename;
-      this.db = new Database(target);
+      this.db = new Database(target) as BunDatabase;
       this.initSchema();
       this.isAvailable = true;
     } catch {
@@ -29,6 +51,7 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
   }
 
   private initSchema(): void {
+    if (!this.db) return;
     this.db.run('PRAGMA journal_mode = WAL;');
     this.db.run(`
       CREATE TABLE IF NOT EXISTS context_blocks (
@@ -55,7 +78,7 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
   }
 
   async add(blocks: ContextBlock | ContextBlock[]): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable || !this.db) return;
     const list = Array.isArray(blocks) ? blocks : [blocks];
 
     const insertBlock = this.db.prepare(`
@@ -100,36 +123,35 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
   }
 
   async delete(id: string): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable || !this.db) return;
     this.db.prepare(`DELETE FROM context_blocks WHERE id = ?`).run(id);
     this.db.prepare(`DELETE FROM context_fts WHERE id = ?`).run(id);
   }
 
   async clear(): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable || !this.db) return;
     this.db.run(`DELETE FROM context_blocks;`);
     this.db.run(`DELETE FROM context_fts;`);
   }
 
   async list(): Promise<ContextBlock[]> {
-    if (!this.isAvailable) return [];
+    if (!this.isAvailable || !this.db) return [];
     const rows = this.db.prepare(`SELECT * FROM context_blocks`).all();
-    return rows.map((r: any) => this.rowToBlock(r));
+    return rows.map(r => this.rowToBlock(r));
   }
 
   async query(options: StoreQueryOptions): Promise<ScoredContextBlock[]> {
-    if (!this.isAvailable) return [];
+    if (!this.isAvailable || !this.db) return [];
     const { query, categories, tags, limit = 20, metadataFilter } = options;
 
-    let cleanQuery = query.replace(/[^\w\s]/g, ' ').trim();
+    const cleanQuery = query.replace(/[^\w\s]/g, ' ').trim();
     if (!cleanQuery && (!categories || categories.length === 0) && (!tags || tags.length === 0)) {
       return [];
     }
 
-    let rows: any[] = [];
+    let rows: SqliteRow[] = [];
 
     if (cleanQuery) {
-      // FTS5 MATCH with BM25 ranking (bm25 returns negative scores where lower/more negative is better, so -bm25 is positive)
       const ftsQuery = cleanQuery.split(/\s+/).map(term => `"${term}"*`).join(' OR ');
       try {
         const stmt = this.db.prepare(`
@@ -142,7 +164,6 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
         `);
         rows = stmt.all({ $match: ftsQuery, $limit: limit * 2 });
       } catch {
-        // Fallback to table scan if syntax error
         rows = this.db.prepare(`SELECT *, 1.0 AS score FROM context_blocks LIMIT $limit;`).all({ $limit: limit * 2 });
       }
     } else {
@@ -180,7 +201,7 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
     return results.slice(0, limit);
   }
 
-  private rowToBlock(row: any): ContextBlock {
+  private rowToBlock(row: SqliteRow): ContextBlock {
     let metadata: Record<string, unknown> | undefined;
     if (row.metadata) {
       try {
@@ -194,7 +215,7 @@ export class BunSqliteContextStore implements ContextStoreAdapter {
       body: row.body,
       category: row.category ?? undefined,
       tags: row.tags ? row.tags.split(' ').filter(Boolean) : [],
-      priority: row.priority ?? 'retrieved',
+      priority: (row.priority as ContextPriority) ?? 'retrieved',
       source: row.source ?? undefined,
       metadata
     };

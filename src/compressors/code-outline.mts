@@ -26,7 +26,6 @@ export class CodeOutlineCompressor implements ContextCompressorAdapter {
     const outlineLines: string[] = [];
     let insideDocBlock = false;
     let insideTypeDef = false;
-    let braceDepth = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
