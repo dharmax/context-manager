@@ -13,13 +13,24 @@
       "default": "./src/index.ts"
     }
   },
-  "files": ["src", "dist", "README.md"],
+  "files": [
+    "src",
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit",
-    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target bun --format esm && bunx tsc --emitDeclarationOnly --declaration --outDir dist"
+    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target bun --format esm && bunx tsc --noEmit false --declaration --emitDeclarationOnly --outDir dist"
   },
-  "keywords": ["llm", "context", "semantika", "rag", "token-budgeting", "compression"],
+  "keywords": [
+    "llm",
+    "context",
+    "semantika",
+    "rag",
+    "token-budgeting",
+    "compression"
+  ],
   "author": "dharmax",
   "license": "MIT",
   "repository": {
@@ -42,7 +53,11 @@
     "@dharmax/semantika": ">=0.8.0"
   },
   "peerDependenciesMeta": {
-    "@dharmax/llm-utils": { "optional": true },
-    "@dharmax/semantika": { "optional": true }
+    "@dharmax/llm-utils": {
+      "optional": true
+    },
+    "@dharmax/semantika": {
+      "optional": true
+    }
   }
 }
