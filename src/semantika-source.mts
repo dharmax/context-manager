@@ -51,6 +51,7 @@ export class SemantikaContextSource implements ContextSource {
   }
 
   async retrieve(request: ContextSourceRequest): Promise<ScoredContextBlock[]> {
+    if (request.limit <= 0) return [];
     await this.sp.ready();
 
     const hits = await this.sp.tags.search(request.query, {
@@ -65,10 +66,13 @@ export class SemantikaContextSource implements ContextSource {
       reasons: string[];
     }>();
 
-    for (const hit of hits) {
-      const score = hit.match === 'exact' ? 1 : (hit.score ?? 0);
-      const artifacts = await hit.tag.artifacts({ includeDescendants: this.includeDescendants });
+    const discovered = await Promise.all(hits.map(async hit => ({
+      hit,
+      artifacts: await hit.tag.artifacts({ includeDescendants: this.includeDescendants })
+    })));
 
+    for (const { hit, artifacts } of discovered) {
+      const score = hit.match === 'exact' ? 1 : (hit.score ?? 0);
       for (const artifact of artifacts) {
         const existing = candidates.get(artifact.id);
         if (!existing) {
@@ -89,9 +93,7 @@ export class SemantikaContextSource implements ContextSource {
       }
     }
 
-    const ranked = [...candidates.values()]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, request.limit);
+    const ranked = [...candidates.values()].sort((a, b) => b.score - a.score);
 
     const result: ScoredContextBlock[] = [];
     for (const candidate of ranked) {
@@ -102,6 +104,7 @@ export class SemantikaContextSource implements ContextSource {
         score: candidate.score,
         rationale: candidate.reasons
       });
+      if (result.length >= request.limit) break;
     }
 
     return result;
