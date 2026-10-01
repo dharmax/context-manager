@@ -62,7 +62,7 @@ export class SemantikaContextSource implements ContextSource {
       artifact: SemantikaArtifactLike;
       score: number;
       tags: string[];
-      matches: string[];
+      reasons: string[];
     }>();
 
     for (const hit of hits) {
@@ -76,14 +76,16 @@ export class SemantikaContextSource implements ContextSource {
             artifact,
             score,
             tags: [hit.tag.name],
-            matches: [hit.match]
+            reasons: [`semantika:${hit.match}:${hit.tag.name}`]
           });
           continue;
         }
 
         existing.score = Math.max(existing.score, score);
-        if (!existing.tags.includes(hit.tag.name)) existing.tags.push(hit.tag.name);
-        if (!existing.matches.includes(hit.match)) existing.matches.push(hit.match);
+        if (!existing.tags.includes(hit.tag.name)) {
+          existing.tags.push(hit.tag.name);
+          existing.reasons.push(`semantika:${hit.match}:${hit.tag.name}`);
+        }
       }
     }
 
@@ -98,7 +100,7 @@ export class SemantikaContextSource implements ContextSource {
       result.push({
         block,
         score: candidate.score,
-        rationale: candidate.tags.map((tag, i) => `semantika:${candidate.matches[i] ?? candidate.matches[0]}:${tag}`)
+        rationale: candidate.reasons
       });
     }
 
