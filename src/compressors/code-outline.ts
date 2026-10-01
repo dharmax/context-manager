@@ -1,5 +1,5 @@
-import type { ContextCompressorAdapter } from '../types.mjs';
-import { HeadTailCompressor } from './head-tail.mjs';
+import type { ContextCompressorAdapter } from '../types.ts';
+import { HeadTailCompressor } from './head-tail.ts';
 
 export interface CodeOutlineOptions {
   charsPerToken?: number;

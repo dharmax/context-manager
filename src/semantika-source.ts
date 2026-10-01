@@ -3,7 +3,7 @@ import type {
   ContextSource,
   ContextSourceRequest,
   ScoredContextBlock
-} from './types.mjs';
+} from './types.ts';
 
 export interface SemantikaArtifactLike {
   id: string;

@@ -1,5 +1,5 @@
-import { HeadTailCompressor } from './compressors/head-tail.mjs';
-import { CodeOutlineCompressor } from './compressors/code-outline.mjs';
+import { HeadTailCompressor } from './compressors/head-tail.ts';
+import { CodeOutlineCompressor } from './compressors/code-outline.ts';
 
 export { HeadTailCompressor, CodeOutlineCompressor };
 

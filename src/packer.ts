@@ -5,7 +5,7 @@ import type {
   ContextItem,
   ContextPriority,
   TokenizerFunction
-} from './types.mjs';
+} from './types.ts';
 
 export interface PackOptions {
   maxTokens: number;

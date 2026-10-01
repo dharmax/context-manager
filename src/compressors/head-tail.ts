@@ -1,4 +1,4 @@
-import type { ContextCompressorAdapter } from '../types.mjs';
+import type { ContextCompressorAdapter } from '../types.ts';
 
 export interface HeadTailOptions {
   headLines?: number;
