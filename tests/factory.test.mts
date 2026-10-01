@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createContextManager, createMemorySource } from '../dist/index.mjs';
+import { createContextManager, createMemorySource } from '../src/index.mts';
 
 test('factory APIs use the ContextSource boundary', async () => {
   const source = createMemorySource([
