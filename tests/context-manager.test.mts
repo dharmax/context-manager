@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ModularContextManager, HeuristicContextManager } from '../dist/index.mjs';
+import { ModularContextManager, HeuristicContextManager } from '../src/index.mts';
 
 test('ModularContextManager resolves, merges history, and packs', async () => {
   const manager = new ModularContextManager();
