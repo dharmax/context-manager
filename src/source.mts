@@ -31,6 +31,7 @@ export class MemoryContextSource implements ContextSource {
   }
 
   async retrieve(request: ContextSourceRequest): Promise<ScoredContextBlock[]> {
+    if (request.limit <= 0) return [];
     const terms = tokenize(request.query);
     const scored = [...this.blocks.values()].map(block => ({
       block,
