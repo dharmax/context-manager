@@ -3,7 +3,7 @@ import type {
   ContextSource,
   ContextSourceRequest,
   ScoredContextBlock
-} from './types.mjs';
+} from './types.ts';
 
 export class MemoryContextSource implements ContextSource {
   private blocks = new Map<string, ContextBlock>();

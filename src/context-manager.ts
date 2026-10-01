@@ -1,5 +1,5 @@
-import { packContext } from './packer.mjs';
-import { MemoryContextSource } from './source.mjs';
+import { packContext } from './packer.ts';
+import { MemoryContextSource } from './source.ts';
 import type {
   ContextBlock,
   ContextCompressorAdapter,
@@ -10,7 +10,7 @@ import type {
   ContextSource,
   PromptContextManager,
   TokenizerFunction
-} from './types.mjs';
+} from './types.ts';
 
 export interface ModularContextManagerOptions {
   source?: ContextSource;
