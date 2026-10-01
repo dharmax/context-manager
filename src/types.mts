@@ -12,8 +12,6 @@ export interface ContextRequest {
   taskType?: string;
   maxTokens?: number;
   maxItems?: number;
-  categories?: string[];
-  tags?: string[];
   history?: ContextHistoryItem[];
   hints?: Record<string, unknown>;
   output?: {
@@ -28,8 +26,6 @@ export interface ContextBlock {
   id: string;
   title: string;
   body: string;
-  category?: string;
-  tags?: string[];
   priority?: ContextPriority;
   source?: string;
   metadata?: Record<string, unknown>;
@@ -39,6 +35,20 @@ export interface ScoredContextBlock {
   block: ContextBlock;
   score: number;
   rationale?: string[];
+}
+
+export interface ContextSourceRequest {
+  query: string;
+  limit: number;
+  hints?: Record<string, unknown>;
+}
+
+export interface ContextSource {
+  retrieve(request: ContextSourceRequest): Promise<ScoredContextBlock[]>;
+  add?(blocks: ContextBlock | ContextBlock[]): Promise<void>;
+  delete?(id: string): Promise<void>;
+  clear?(): Promise<void>;
+  list?(): Promise<ContextBlock[]>;
 }
 
 export interface ContextItem {
@@ -82,33 +92,6 @@ export interface PromptContextManager {
 export type ContextResolver =
   | PromptContextManager
   | ((request: ContextRequest) => Promise<ContextResult | string>);
-
-export interface StoreQueryOptions {
-  query: string;
-  categories?: string[];
-  tags?: string[];
-  limit?: number;
-  metadataFilter?: (metadata?: Record<string, unknown>) => boolean;
-}
-
-export interface ContextStoreAdapter {
-  query(options: StoreQueryOptions): Promise<ScoredContextBlock[]>;
-  add(blocks: ContextBlock | ContextBlock[]): Promise<void>;
-  delete?(id: string): Promise<void>;
-  clear?(): Promise<void>;
-  list?(): Promise<ContextBlock[]>;
-}
-
-export interface VectorSearchResult {
-  id: string;
-  score: number;
-}
-
-export interface VectorStoreAdapter {
-  search(query: string, limit: number): Promise<VectorSearchResult[]>;
-  embed?(text: string): Promise<number[]>;
-  upsert?(id: string, text: string, metadata?: Record<string, unknown>): Promise<void>;
-}
 
 export interface ContextCompressorAdapter {
   name: string;
