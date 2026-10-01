@@ -7,9 +7,7 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["bun"],
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "declarationDir": "./dist"
+    "noEmit": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
