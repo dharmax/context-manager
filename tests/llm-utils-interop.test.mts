@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveContext, type PromptContextManager as LlmUtilsContextManager } from '../../llm-utils/dist/index.mjs';
-import { ModularContextManager, MemoryContextSource } from '../dist/index.mjs';
+import { ModularContextManager, MemoryContextSource } from '../src/index.mts';
 
-test('interoperates with @dharmax/llm-utils PromptContextManager', async () => {
+test('interoperates with @dharmax/llm-utils PromptContextManager when available', async t => {
+  let resolveContext: ((manager: unknown, request: Record<string, unknown>) => Promise<string>) | undefined;
+
+  try {
+    ({ resolveContext } = await import('@dharmax/llm-utils'));
+  } catch {
+    t.skip('@dharmax/llm-utils is an optional peer and is not installed');
+    return;
+  }
+
   const source = new MemoryContextSource([
     {
       id: 'rule-solid',
@@ -19,9 +27,6 @@ test('interoperates with @dharmax/llm-utils PromptContextManager', async () => {
   ]);
 
   const manager = new ModularContextManager({ source });
-  const typeCheck: LlmUtilsContextManager = manager;
-  assert.ok(typeCheck);
-
   const contextString = await resolveContext(manager, {
     query: 'What are the architectural rules on simplicity and solid design?',
     maxTokens: 500
