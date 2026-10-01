@@ -1,7 +1,7 @@
 {
   "name": "@dharmax/context-manager",
-  "version": "0.2.0",
-  "description": "High-performance, Bun-native modular prompt context engine with hybrid retrieval (BM25 + Vector RRF), priority budgeting, and non-destructive compression.",
+  "version": "0.3.0",
+  "description": "Prompt context attention manager with Semantika-backed semantic discovery, priority budgeting, and non-destructive compression.",
   "type": "module",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -12,28 +12,13 @@
       "default": "./dist/index.mjs"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
-    "build": "esbuild src/index.mts --bundle --platform=node --format=esm --outfile=dist/index.mjs --sourcemap --resolve-extensions=.mts,.mtsx,.js,.json --external:node:child_process --external:node:util --external:bun:sqlite && tsc --emitDeclarationOnly --outDir dist",
-    "test": "bun test",
+    "build": "esbuild src/index.mts --bundle --platform=node --format=esm --outfile=dist/index.mjs --sourcemap --resolve-extensions=.mts,.mtsx,.js,.json && tsc --emitDeclarationOnly --outDir dist",
+    "test": "bun run build && bun test",
     "test:node": "npm run build && node --test tests/*.test.mts"
   },
-  "keywords": [
-    "bun",
-    "llm",
-    "context",
-    "rag",
-    "vector",
-    "sqlite-fts5",
-    "hybrid-search",
-    "rrf",
-    "prompt-engineering",
-    "token-budgeting",
-    "compression"
-  ],
+  "keywords": ["llm", "context", "semantika", "rag", "token-budgeting", "compression"],
   "author": "dharmax",
   "license": "MIT",
   "repository": {
@@ -50,11 +35,11 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@dharmax/llm-utils": ">=0.1.0"
+    "@dharmax/llm-utils": ">=0.1.0",
+    "@dharmax/semantika": ">=0.8.0"
   },
   "peerDependenciesMeta": {
-    "@dharmax/llm-utils": {
-      "optional": true
-    }
+    "@dharmax/llm-utils": { "optional": true },
+    "@dharmax/semantika": { "optional": true }
   }
 }
