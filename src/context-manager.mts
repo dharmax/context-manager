@@ -1,7 +1,5 @@
 import { packContext } from './packer.mjs';
-import { parseContextQuery } from './query-parser.mjs';
-import { MemoryContextStore } from './stores/memory-store.mjs';
-import { BunSqliteContextStore, type SqliteStoreOptions } from './stores/sqlite-store.mjs';
+import { MemoryContextSource } from './source.mjs';
 import type {
   ContextBlock,
   ContextCompressorAdapter,
@@ -9,13 +7,13 @@ import type {
   ContextItem,
   ContextRequest,
   ContextResult,
-  ContextStoreAdapter,
+  ContextSource,
   PromptContextManager,
   TokenizerFunction
 } from './types.mjs';
 
 export interface ModularContextManagerOptions {
-  store?: ContextStoreAdapter;
+  source?: ContextSource;
   defaultMaxTokens?: number;
   defaultMaxItems?: number;
   compressor?: ContextCompressorAdapter;
@@ -24,7 +22,7 @@ export interface ModularContextManagerOptions {
 }
 
 export class ModularContextManager implements PromptContextManager {
-  private store: ContextStoreAdapter;
+  private source: ContextSource;
   private defaultMaxTokens: number;
   private defaultMaxItems: number;
   private compressor?: ContextCompressorAdapter;
@@ -32,7 +30,7 @@ export class ModularContextManager implements PromptContextManager {
   private defaultFormat: ContextFormat;
 
   constructor(options: ModularContextManagerOptions = {}) {
-    this.store = options.store ?? new MemoryContextStore();
+    this.source = options.source ?? new MemoryContextSource();
     this.defaultMaxTokens = options.defaultMaxTokens ?? 1500;
     this.defaultMaxItems = options.defaultMaxItems ?? 10;
     this.compressor = options.compressor;
@@ -40,57 +38,42 @@ export class ModularContextManager implements PromptContextManager {
     this.defaultFormat = options.format ?? 'markdown';
   }
 
-  getStore(): ContextStoreAdapter {
-    return this.store;
+  getSource(): ContextSource {
+    return this.source;
   }
 
   async add(blocks: ContextBlock | ContextBlock[]): Promise<this> {
-    await this.store.add(blocks);
+    if (!this.source.add) throw new Error('This context source is read-only');
+    await this.source.add(blocks);
     return this;
   }
 
   async addBlock(block: ContextBlock): Promise<this> {
-    await this.store.add(block);
-    return this;
+    return this.add(block);
   }
 
   async clear(): Promise<this> {
-    if (this.store.clear) {
-      await this.store.clear();
-    }
+    if (this.source.clear) await this.source.clear();
     return this;
   }
 
-  /**
-   * Directly queries the store and returns scored items without prompt packing.
-   */
-  async search(query: string, options: { categories?: string[]; tags?: string[]; limit?: number } = {}) {
-    const parsed = parseContextQuery(query, options.categories, options.tags);
-    return this.store.query({
-      query: parsed.cleanQuery || query,
-      categories: parsed.categories,
-      tags: parsed.tags,
-      limit: options.limit ?? this.defaultMaxItems
+  async search(query: string, options: { limit?: number; hints?: Record<string, unknown> } = {}) {
+    return this.source.retrieve({
+      query,
+      limit: options.limit ?? this.defaultMaxItems,
+      hints: options.hints
     });
   }
 
-  /**
-   * Implements PromptContextManager for @dharmax/llm-utils.
-   */
   async resolve(request: ContextRequest): Promise<ContextResult> {
     const maxTokens = request.maxTokens ?? this.defaultMaxTokens;
     const maxItems = request.maxItems ?? this.defaultMaxItems;
     const format = request.output?.format ?? this.defaultFormat;
 
-    // 1. Parse inline query operators (category:tag/etc) and merge with request parameters
-    const parsed = parseContextQuery(request.query, request.categories, request.tags);
-
-    // 2. Retrieve candidates from store
-    const scoredBlocks = await this.store.query({
-      query: parsed.cleanQuery || request.query,
-      categories: parsed.categories,
-      tags: parsed.tags,
-      limit: maxItems * 2
+    const scoredBlocks = await this.source.retrieve({
+      query: request.query,
+      limit: maxItems * 2,
+      hints: request.hints
     });
 
     const candidates: ContextItem[] = scoredBlocks.map(({ block, score, rationale }) => ({
@@ -99,18 +82,13 @@ export class ModularContextManager implements PromptContextManager {
       content: block.body,
       kind: 'note',
       score,
-      source: block.source ?? block.category,
-      priority: block.priority ?? parsed.priority ?? 'retrieved',
+      source: block.source,
+      priority: block.priority ?? 'retrieved',
       rationale,
-      metadata: {
-        category: block.category,
-        tags: block.tags,
-        ...block.metadata
-      }
+      metadata: block.metadata
     }));
 
-    // 3. Add history items if present
-    if (request.history && request.history.length > 0) {
+    if (request.history) {
       for (let i = 0; i < request.history.length; i++) {
         const h = request.history[i];
         candidates.push({
@@ -119,60 +97,31 @@ export class ModularContextManager implements PromptContextManager {
           content: h.content,
           kind: 'history',
           priority: 'history',
-          score: 1.0 / (request.history.length - i)
+          score: 1 / (request.history.length - i)
         });
       }
     }
 
-    // 4. Pack into token budget
-    const packed = await packContext(candidates, {
+    return packContext(candidates, {
       maxTokens,
       maxItems,
       format,
       tokenizer: this.tokenizer,
       compressor: this.compressor
     });
-
-    return {
-      items: packed.items,
-      rendered: packed.rendered,
-      diagnostics: packed.diagnostics
-    };
   }
 }
 
-/**
- * Factory helper for creating context managers with zero boilerplate.
- */
 export function createContextManager(options?: ModularContextManagerOptions): ModularContextManager {
   return new ModularContextManager(options);
 }
 
-export function createMemoryStore(initialBlocks?: ContextBlock[]): MemoryContextStore {
-  const store = new MemoryContextStore();
-  if (initialBlocks && initialBlocks.length > 0) {
-    store.add(initialBlocks);
-  }
-  return store;
+export function createMemorySource(initialBlocks?: ContextBlock[]): MemoryContextSource {
+  return new MemoryContextSource(initialBlocks);
 }
 
-export function createSqliteStore(options?: SqliteStoreOptions, initialBlocks?: ContextBlock[]): BunSqliteContextStore {
-  const store = new BunSqliteContextStore(options);
-  if (initialBlocks && initialBlocks.length > 0) {
-    store.add(initialBlocks);
-  }
-  return store;
-}
-
-/**
- * Backward-compatible alias for HeuristicContextManager.
- */
 export interface HeuristicContextManagerOptions extends ModularContextManagerOptions {
   compressAboveWords?: number;
 }
 
-export class HeuristicContextManager extends ModularContextManager {
-  constructor(options: HeuristicContextManagerOptions = {}) {
-    super(options);
-  }
-}
+export class HeuristicContextManager extends ModularContextManager {}
