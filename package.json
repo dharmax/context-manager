@@ -48,17 +48,5 @@
     "@types/bun": "^1.3.0",
     "typescript": "^6.0.3"
   },
-  "peerDependencies": {
-    "@dharmax/llm-utils": ">=1.0.0",
-    "@dharmax/semantika": ">=0.8.0"
-  },
-  "peerDependenciesMeta": {
-    "@dharmax/llm-utils": {
-      "optional": true
-    },
-    "@dharmax/semantika": {
-      "optional": true
-    }
-  },
   "packageManager": "bun@1.3.14"
 }
