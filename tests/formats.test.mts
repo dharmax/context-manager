@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { packContext, type ContextItem } from '../dist/index.mjs';
+import { packContext, type ContextItem } from '../src/index.mts';
 
 const sampleItems: ContextItem[] = [
   {

@@ -14,8 +14,8 @@
   },
   "files": ["dist", "README.md"],
   "scripts": {
-    "build": "esbuild src/index.mts --bundle --platform=node --format=esm --outfile=dist/index.mjs --sourcemap --resolve-extensions=.mts,.mtsx,.js,.json && tsc --emitDeclarationOnly --outDir dist",
-    "test": "bun run build && bun test",
+    "build": "rm -rf dist && esbuild src/index.mts --bundle --platform=node --format=esm --outfile=dist/index.mjs --sourcemap --resolve-extensions=.mts,.mtsx,.js,.json && tsc --emitDeclarationOnly --outDir dist",
+    "test": "bun test && bun run build && bun checks/package-smoke.mts",
     "test:node": "npm run build && node --test tests/*.test.mts"
   },
   "keywords": ["llm", "context", "semantika", "rag", "token-budgeting", "compression"],
