@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HeadTailCompressor, CodeOutlineCompressor } from '../dist/index.mjs';
+import { HeadTailCompressor, CodeOutlineCompressor } from '../src/index.mts';
 
 test('HeadTailCompressor - truncates large logs cleanly preserving head and tail', () => {
   const compressor = new HeadTailCompressor({ headLines: 3, tailLines: 3 });

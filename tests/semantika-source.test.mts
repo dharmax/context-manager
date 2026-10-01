@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SemantikaContextSource } from '../dist/index.mjs';
+import { SemantikaContextSource } from '../src/index.mts';
 
 test('SemantikaContextSource routes query through tags and deduplicates artifacts', async () => {
   const scheduler = {

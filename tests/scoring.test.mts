@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MemoryContextSource } from '../dist/index.mjs';
+import { MemoryContextSource } from '../src/index.mts';
 
 test('MemoryContextSource is a small lexical fallback, not a semantic store', async () => {
   const source = new MemoryContextSource([
