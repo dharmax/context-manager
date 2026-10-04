@@ -21,7 +21,7 @@ export interface SemantikaTagHit {
 }
 
 export interface SemantikaPackageLike {
-  ready(): Promise<void>;
+  ready(): Promise<unknown>;
   tags: {
     search(query: string, options?: { limit?: number; minScore?: number }): Promise<SemantikaTagHit[]>;
   };
